@@ -128,7 +128,7 @@ def cmd_inspect(_args: argparse.Namespace) -> int:
         val   = f"{a['ath_value']:>16,.2f}"
         print(f"  {a['metric_name']:<38} {scope:<20} {val} {str(a['ath_date']):<12}")
 
-    print(f"\n  💡 Compare esses valores com https://dune.com/balancer/v3\n")
+    print(f"\n  Compare esses valores com https://dune.com/balancer/v3\n")
     return 0
 
 

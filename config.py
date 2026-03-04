@@ -58,18 +58,22 @@ SCHEDULE_HOUR     = 8
 SCHEDULE_MINUTE   = 30
 
 # ── Milestones ───────────────────────────────────────────────────────────────
+import math as _math
+
 def milestone_step(value: float) -> float:
-    """Return the milestone step size appropriate for *value*."""
-    if value < 10_000_000:
-        return 1_000_000
-    elif value < 100_000_000:
-        return 10_000_000
-    elif value < 1_000_000_000:
-        return 25_000_000
-    elif value < 10_000_000_000:
-        return 100_000_000
-    else:
-        return 500_000_000
+    """
+    Return the milestone step for *value*: always a multiple of 5 at the
+    relevant order of magnitude.
+
+    Examples:
+      $17.8B  → $5B   (milestones at $15B, $20B, $25B …)
+      $68.9M  → $50M  (milestones at $50M, $100M, $150M …)
+      $1.4M   → $500K (milestones at $500K, $1M, $1.5M …)
+      2 637   → 500   (milestones at 500, 1000, 1500, 2000 …)
+    """
+    if value <= 0:
+        return 1.0
+    return 5 * (10 ** _math.floor(_math.log10(value / 5)))
 
 # ── Dune Query IDs ───────────────────────────────────────────────────────────
 # These query IDs map to saved Dune queries that return the required metrics.
