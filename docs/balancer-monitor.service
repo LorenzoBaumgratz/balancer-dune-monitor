@@ -1,0 +1,42 @@
+# systemd service unit for the Balancer Dune Monitor
+# -------------------------------------------------------
+# Installation:
+#   sudo cp balancer-monitor.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now balancer-monitor
+#
+# Logs:
+#   sudo journalctl -u balancer-monitor -f
+
+[Unit]
+Description=Balancer Dune Analytics Monitor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu                         # ← change to the user that owns the project
+WorkingDirectory=/opt/balancer-monitor  # ← change to your deploy path
+
+# Export your Dune API key here (or use an EnvironmentFile)
+Environment="DUNE_API_KEY=your_key_here"
+# EnvironmentFile=/etc/balancer-monitor/env   # ← safer alternative
+
+ExecStart=/opt/balancer-monitor/venv/bin/python main.py schedule
+
+# Restart on failure, but not immediately (5 s cool-down)
+Restart=on-failure
+RestartSec=5
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/opt/balancer-monitor/data /opt/balancer-monitor/logs
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=balancer-monitor
+
+[Install]
+WantedBy=multi-user.target

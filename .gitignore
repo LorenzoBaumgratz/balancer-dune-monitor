@@ -1,0 +1,27 @@
+# Secrets — never commit your API key
+.env
+
+# Runtime data (auto-generated, not part of source)
+data/
+logs/
+
+# Python artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Claude Code internal
+.claude/

@@ -1,0 +1,14 @@
+# Balancer Dune Monitor – Python dependencies
+# Tested with Python 3.11+
+
+# HTTP client
+requests>=2.31.0
+
+# Timezone support
+pytz>=2024.1
+
+# Job scheduling
+APScheduler>=3.10.4
+
+# Optional: nicer CLI output (not required by core logic)
+# rich>=13.7.0
