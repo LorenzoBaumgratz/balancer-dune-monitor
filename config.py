@@ -112,8 +112,8 @@ DUNE_QUERIES: dict[str, int] = {
 #   global_volume_by_chain    → weekly_volume_by_chain    (scope_type="chain") [all versions]
 #                             → cumulative_volume         (scope_type="chain") [all versions, if cols available]
 #
-#   global_tvl_by_chain       → tvl                       (scope_type="chain") [all versions]
-#                             → tvl                       (scope_type="global", scope_value="")
+#   global_tvl_by_chain (2617531) → tvl_total              (scope_type="chain") [all versions]
+#                                 → tvl_total              (scope_type="global", scope_value="")
 #
 DUNE_QUERIES_CACHED: dict[str, int] = {
     # ── ACTIVE: retornam histórico completo, sem custo de execução ────────────
@@ -138,6 +138,10 @@ DUNE_QUERIES_CACHED: dict[str, int] = {
     # cols prováveis: day, fees_usd  (colunas exatas a confirmar no primeiro fetch)
     "v3_fees_daily":              4373539,
 
+    # TVL total Balancer (V1+V2+V3) por chain — snapshot diário
+    # cols prováveis: blockchain/chain, tvl_usd/tvl, day
+    "global_tvl_by_chain":        2617531,
+
     # ── PENDING: IDs ainda não encontrados ────────────────────────────────────
 
     # Fees acumuladas por versão (V1+V2+V3)
@@ -147,10 +151,6 @@ DUNE_QUERIES_CACHED: dict[str, int] = {
     # Volume por blockchain, TODAS as versões (V1+V2+V3)
     # cols esperadas: week, blockchain, volume
     # "global_volume_by_chain":   TOFIND,
-
-    # TVL por blockchain, TODAS as versões (V1+V2+V3)
-    # cols esperadas: day, blockchain, tvl_usd
-    # "global_tvl_by_chain":      TOFIND,
 }
 
 

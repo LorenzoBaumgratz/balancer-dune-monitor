@@ -564,15 +564,18 @@ def _parse_global_volume_by_version(rows: list[dict], scope: str) -> list[Snapsh
     Query 22261 – Volume (USD) by Version, Weekly  (V1 + V2 + V3)
     Expected cols: week, version, volume (or volume_usd / Volume)
 
-    Produces three kinds of snapshots:
-      - weekly_volume_by_version (scope_type="version")  – most recent week per version
-      - cumulative_volume        (scope_type="version")  – sum of ALL historical weeks per version
-      - cumulative_volume        (scope_type="global", scope_value="") – grand total all versions
+    Produces four kinds of snapshots:
+      - weekly_volume_by_version  (scope_type="version")  – most recent week per version
+      - monthly_volume_by_version (scope_type="version")  – sum of current-month weeks
+      - cumulative_volume         (scope_type="version")  – sum of ALL historical weeks per version
+      - cumulative_volume         (scope_type="global", scope_value="") – grand total all versions
     """
     snaps: list[Snapshot] = []
+    cur_ym = (date.today().year, date.today().month)
 
     # ── Pass 1: accumulate totals across ALL historical weeks ─────────────────
     version_totals: dict[str, float] = {}
+    version_monthly_totals: dict[str, float] = {}
     version_latest_date: dict[str, date] = {}
     global_total = 0.0
     global_latest_date: date | None = None
@@ -594,6 +597,10 @@ def _parse_global_volume_by_version(rows: list[dict], scope: str) -> list[Snapsh
         if version not in version_latest_date or snap_date > version_latest_date[version]:
             version_latest_date[version] = snap_date
 
+        # Monthly: attribute the week's volume to the month of its start date
+        if (snap_date.year, snap_date.month) == cur_ym:
+            version_monthly_totals[version] = version_monthly_totals.get(version, 0.0) + val
+
         global_total += val
         if global_latest_date is None or snap_date > global_latest_date:
             global_latest_date = snap_date
@@ -613,6 +620,12 @@ def _parse_global_volume_by_version(rows: list[dict], scope: str) -> list[Snapsh
         except KeyError:
             pass
 
+    # ── Monthly per version (sum of weeks in current calendar month) ──────────
+    for version, monthly_total in version_monthly_totals.items():
+        if monthly_total > 0:
+            ld = version_latest_date.get(version, date.today())
+            snaps.append(Snapshot(ld, "monthly_volume_by_version", "version", version, monthly_total))
+
     # ── Cumulative per version (sum of all historical weeks) ──────────────────
     for version, total in version_totals.items():
         snaps.append(Snapshot(version_latest_date[version], "cumulative_volume", "version", version, total))
@@ -624,12 +637,73 @@ def _parse_global_volume_by_version(rows: list[dict], scope: str) -> list[Snapsh
     return snaps
 
 
+def _parse_global_tvl_by_chain(rows: list[dict], scope: str) -> list[Snapshot]:
+    """
+    Query 2617531 – TVL total Balancer (V1+V2+V3) por chain  [CACHED]
+    Possible cols: blockchain/chain/network, tvl_usd/tvl/total_tvl_usd, day/date
+
+    Produces:
+      tvl_total  (scope_type="chain",  scope_value=<chain>) — TVL atual por chain
+      tvl_total  (scope_type="global", scope_value="")      — TVL total todas chains
+    ATH detected automatically by the ATH engine.
+    """
+    snaps: list[Snapshot] = []
+    if not rows:
+        return snaps
+
+    TVL_KEYS   = ("tvl_usd", "tvl", "tvl_all_versions_usd", "total_tvl_usd")
+    CHAIN_KEYS = ("blockchain", "chain", "network")
+
+    # Discover which chain column is present in this query
+    chain_col: str | None = None
+    for k in CHAIN_KEYS:
+        if k in rows[0]:
+            chain_col = k
+            break
+
+    if chain_col is None:
+        log.warning(
+            "_parse_global_tvl_by_chain: no chain column found in row. "
+            "Known keys: %s. Sample row: %s",
+            list(rows[0].keys()) if rows else [],
+            rows[0] if rows else "(empty)",
+        )
+        return snaps
+
+    recent_rows = _most_recent_rows_per_group(rows, chain_col)
+    global_tvl  = 0.0
+    latest_d    = date(2000, 1, 1)
+
+    for row in recent_rows:
+        raw_chain = row.get(chain_col)
+        if raw_chain is None:
+            continue
+        chain = _normalize_name(str(raw_chain).strip())
+        if not chain or chain.lower() == "none":
+            continue
+        d = _parse_row_date(row)
+        try:
+            val = _fval(row, *TVL_KEYS)
+        except KeyError:
+            continue
+        snaps.append(Snapshot(d, "tvl_total", "chain", chain, val))
+        global_tvl += val
+        if d > latest_d:
+            latest_d = d
+
+    if global_tvl > 0:
+        snaps.append(Snapshot(latest_d, "tvl_total", "global", "", global_tvl))
+
+    return snaps
+
+
 # ── Parser registry ───────────────────────────────────────────────────────────
 
 PARSERS: dict[str, tuple[Callable[[list[dict], str], list[Snapshot]], str]] = {
     # Global (all versions)
     "global_pools_created":      (_parse_global_pools_created,      "global"),
     "global_volume_by_version":  (_parse_global_volume_by_version,  "global"),
+    "global_tvl_by_chain":       (_parse_global_tvl_by_chain,       "global"),
 
     # V3
     "v3_summary":                (_parse_v3_summary,                "v3"),

@@ -35,13 +35,30 @@ from logger_setup import get_logger
 
 log = get_logger(__name__)
 
-# Metrics explicitly classified as "daily" even if not prefixed with "daily_"
+# Metrics explicitly classified as ATH-tracked even if not prefixed with "daily_".
+# Includes point-in-time snapshots (tvl, tvl_eth) and periodic running totals
+# (weekly_*, monthly_*) — for periodic metrics the ATH engine compares the
+# running total of the current period against the best period ever recorded.
 DAILY_METRICS: frozenset[str] = frozenset(
     {
+        # Point-in-time snapshots
         "tvl",
+        "tvl_eth",
+        "tvl_total",        # V1+V2+V3 combined TVL (query 2617531)
         "tvl_by_chain",
         "tvl_by_pool_type",
         "pools_by_type",
+        # Weekly running totals
+        "weekly_fees",
+        "weekly_swap_volume",
+        "weekly_volume_by_chain",
+        "weekly_volume_by_pool_type",
+        "weekly_volume_by_version",
+        # Monthly running totals
+        "monthly_fees",
+        "monthly_swap_volume",
+        "monthly_volume_by_version",
+        "monthly_swaps",
     }
 )
 
@@ -176,7 +193,15 @@ def rebuild_aths_from_snapshots(conn: sqlite3.Connection) -> int:
         """
         SELECT metric_name, scope_type, scope_value, snap_date, value
         FROM daily_snapshots
-        WHERE (metric_name LIKE 'daily_%' OR metric_name IN ('tvl', 'tvl_eth', 'pools_by_type'))
+        WHERE (
+            metric_name LIKE 'daily_%'
+            OR metric_name LIKE 'weekly_%'
+            OR metric_name LIKE 'monthly_%'
+            OR metric_name IN (
+                'tvl', 'tvl_eth', 'tvl_total',
+                'tvl_by_chain', 'tvl_by_pool_type', 'pools_by_type'
+            )
+        )
           AND value > 0
         ORDER BY metric_name, scope_type, scope_value, snap_date
         """

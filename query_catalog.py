@@ -187,9 +187,27 @@ QUERY_CATALOG: dict[str, dict] = {
         ),
         "columns": ["week", "version", "volume"],
         "used_for": [
-            "weekly_volume_by_version",  # volume semanal por versão (scope version)
-            "cumulative_volume",         # volume acumulado por versão (scope version)
-            "cumulative_volume",         # volume acumulado total global (scope global)
+            "weekly_volume_by_version",   # volume semanal por versão (scope version)
+            "monthly_volume_by_version",  # volume do mês corrente por versão (scope version)
+            "cumulative_volume",          # volume acumulado por versão (scope version)
+            "cumulative_volume",          # volume acumulado total global (scope global)
+        ],
+        "status": "active",
+    },
+
+    "global_tvl_by_chain": {
+        "id":          2617531,
+        "fetch":       "get_latest_result",
+        "scope":       "all_versions",
+        "granularity": "daily",
+        "description": (
+            "TVL total Balancer (V1+V2+V3) por chain — snapshot diário. "
+            "Uma linha por (dia, blockchain). Colunas exatas confirmadas no primeiro fetch."
+        ),
+        "columns": ["blockchain", "tvl_usd", "day"],   # a confirmar
+        "used_for": [
+            "tvl_total",  # TVL atual por chain, todas versões (scope chain)
+            "tvl_total",  # TVL total global, todas versões (scope global)
         ],
         "status": "active",
     },
@@ -230,20 +248,4 @@ QUERY_CATALOG: dict[str, dict] = {
         "status": "pending",
     },
 
-    "global_tvl_by_chain": {
-        "id":          None,   # TOFIND
-        "fetch":       "get_latest_result",
-        "scope":       "all_versions",
-        "granularity": "daily",
-        "description": (
-            "TVL por blockchain, TODAS as versões (V1+V2+V3). "
-            "Diferente do v3_tvl_by_chain que é só V3."
-        ),
-        "columns": ["day", "blockchain", "tvl_usd"],   # colunas esperadas
-        "used_for": [
-            "tvl",  # TVL atual por chain, todas versões (scope chain)
-            "tvl",  # TVL total global, todas versões (scope global)
-        ],
-        "status": "pending",
-    },
 }

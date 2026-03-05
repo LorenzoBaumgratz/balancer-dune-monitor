@@ -97,6 +97,15 @@ METRICS_CATALOG: dict[str, dict] = {
         "source_queries":   ["global_volume_by_version"],
     },
 
+    "monthly_volume_by_version": {
+        "description":      "Volume de swap acumulado no mês calendário corrente por versão (V1/V2/V3)",
+        "scope_types":      ["version"],
+        "update_frequency": "monthly",
+        "tracks_ath":       True,
+        "tracks_milestone": False,
+        "source_queries":   ["global_volume_by_version"],
+    },
+
     # ── SWAPS (contagem) ──────────────────────────────────────────────────────
 
     "daily_swaps": {
@@ -144,6 +153,15 @@ METRICS_CATALOG: dict[str, dict] = {
         "tracks_ath":       True,
         "tracks_milestone": False,
         "source_queries":   ["v3_tvl"],
+    },
+
+    "tvl_total": {
+        "description":      "TVL total Balancer (V1+V2+V3) em USD por chain e global",
+        "scope_types":      ["chain", "global"],
+        "update_frequency": "daily",
+        "tracks_ath":       True,
+        "tracks_milestone": False,
+        "source_queries":   ["global_tvl_by_chain"],
     },
 
     # ── FEES ─────────────────────────────────────────────────────────────────
