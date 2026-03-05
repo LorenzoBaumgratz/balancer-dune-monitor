@@ -24,6 +24,14 @@ v3_pools_by_type (4353295):
 
 global_pools_created (2617646):
   blockchain, pools_registered, week
+
+global_volume_by_version (22261) [cached]:
+  week, version, volume
+  Retorna uma linha por (semana, versao) — V1, V2 e V3.
+  Deste dado calculamos:
+    weekly_volume_by_version  (scope_type="version", scope_value="v1"/"v2"/"v3")
+    cumulative_volume         (scope_type="version") — soma historica por versao
+    cumulative_volume         (scope_type="global",  scope_value="") — soma total de todas versoes
 """
 
 from __future__ import annotations
@@ -318,23 +326,63 @@ def _parse_global_volume_by_version(rows: list[dict], scope: str) -> list[Snapsh
     """
     Query 22261 – Volume (USD) by Version, Weekly  (V1 + V2 + V3)
     Expected cols: week, version, volume (or volume_usd / Volume)
-    Returns the most recent week per version.
+
+    Produces three kinds of snapshots:
+      - weekly_volume_by_version (scope_type="version")  – most recent week per version
+      - cumulative_volume        (scope_type="version")  – sum of ALL historical weeks per version
+      - cumulative_volume        (scope_type="global", scope_value="") – grand total all versions
     """
     snaps: list[Snapshot] = []
-    recent_rows = _most_recent_rows_per_group(rows, "version")
 
-    for row in recent_rows:
+    # ── Pass 1: accumulate totals across ALL historical weeks ─────────────────
+    version_totals: dict[str, float] = {}
+    version_latest_date: dict[str, date] = {}
+    global_total = 0.0
+    global_latest_date: date | None = None
+
+    for row in rows:
+        raw_version = row.get("version")
+        if raw_version is None:
+            continue
+        version = str(raw_version).strip().lower()
+        if not version:
+            continue
+        try:
+            val = _fval(row, "volume", "volume_usd", "Volume")
+        except KeyError:
+            continue
+        snap_date = _parse_row_date(row)
+
+        version_totals[version] = version_totals.get(version, 0.0) + val
+        if version not in version_latest_date or snap_date > version_latest_date[version]:
+            version_latest_date[version] = snap_date
+
+        global_total += val
+        if global_latest_date is None or snap_date > global_latest_date:
+            global_latest_date = snap_date
+
+    if not version_totals:
+        return snaps
+
+    # ── Weekly snapshots: most recent week per version ────────────────────────
+    for row in _most_recent_rows_per_group(rows, "version"):
         version = str(row.get("version", "")).strip().lower()
         if not version:
             continue
         snap_date = _parse_row_date(row)
         try:
             val = _fval(row, "volume", "volume_usd", "Volume")
-            snaps.append(
-                Snapshot(snap_date, "weekly_volume_by_version", "version", version, val)
-            )
+            snaps.append(Snapshot(snap_date, "weekly_volume_by_version", "version", version, val))
         except KeyError:
             pass
+
+    # ── Cumulative per version (sum of all historical weeks) ──────────────────
+    for version, total in version_totals.items():
+        snaps.append(Snapshot(version_latest_date[version], "cumulative_volume", "version", version, total))
+
+    # ── Cumulative global: ALL versions + ALL weeks summed ────────────────────
+    if global_latest_date is not None and global_total > 0:
+        snaps.append(Snapshot(global_latest_date, "cumulative_volume", "global", "", global_total))
 
     return snaps
 
@@ -494,6 +542,7 @@ def extract_all_history(client: DuneClient) -> list[Snapshot]:
     log.info("Fetching historical volume by version (query 22261, cached)...")
     try:
         rows = client.get_latest_result(22261)
+        # Weekly entries (one per week per version)
         for row in rows:
             snap_date = _parse_row_date(row)
             version = str(row.get("version", "")).strip().lower()
@@ -506,7 +555,16 @@ def extract_all_history(client: DuneClient) -> list[Snapshot]:
                 )
             except KeyError:
                 pass
-        log.info("volume_by_version history: %d rows processed", len(rows))
+        # Cumulative totals (per version + global) computed from all rows
+        cumulative_snaps = [
+            s for s in _parse_global_volume_by_version(rows, "global")
+            if s.metric_name == "cumulative_volume"
+        ]
+        all_snapshots.extend(cumulative_snaps)
+        log.info(
+            "volume_by_version history: %d rows → %d weekly + %d cumulative snapshots",
+            len(rows), len(rows), len(cumulative_snaps),
+        )
     except Exception as exc:
         log.error("Failed to fetch volume_by_version history: %s", exc)
 

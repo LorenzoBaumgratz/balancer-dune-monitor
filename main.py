@@ -100,6 +100,9 @@ def cmd_stats(_args: argparse.Namespace) -> int:
 
 def cmd_inspect(_args: argparse.Namespace) -> int:
     """Mostra todos os dados extraídos e ATHs para verificação manual."""
+    import sys as _sys
+    if hasattr(_sys.stdout, "reconfigure"):
+        _sys.stdout.reconfigure(errors="replace")
     from database import get_all_snapshots, get_all_aths
     init_db()
     with get_db() as conn:

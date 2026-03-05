@@ -102,13 +102,43 @@ DUNE_QUERIES: dict[str, int] = {
 }
 
 # Queries fetched via get_latest_result() — no new execution triggered,
-# reads the latest cached result. Use for public third-party queries
-# (e.g. official Balancer Dune queries) to save API credits.
+# reads the latest cached result (zero API execution credits consumed).
+# Use for public/official Balancer queries that are already kept fresh by Dune.
+#
+# Each entry must have a matching parser in extractor.PARSERS.
+# Convention for what each logical name produces:
+#
+#   global_volume_by_version  → weekly_volume_by_version (scope_type="version")
+#                             → cumulative_volume         (scope_type="version")
+#                             → cumulative_volume         (scope_type="global", scope_value="")
+#
+#   global_fees_by_version    → cumulative_fees           (scope_type="version")
+#                             → cumulative_fees           (scope_type="global", scope_value="")
+#
+#   global_volume_by_chain    → weekly_volume_by_chain    (scope_type="chain") [all versions]
+#                             → cumulative_volume         (scope_type="chain") [all versions, if cols available]
+#
+#   global_tvl_by_chain       → tvl                       (scope_type="chain") [all versions]
+#                             → tvl                       (scope_type="global", scope_value="")
+#
 DUNE_QUERIES_CACHED: dict[str, int] = {
-    "global_volume_by_version":   22261,        # ← Volume (USD) by Version, Weekly (V1+V2+V3)
-    # "global_fees_by_version":   TOFIND,       # ← pending: cumulative fees all versions
-    # "global_tvl_by_chain":      TOFIND,       # ← pending: TVL by chain all versions
-    # "global_volume_by_chain":   TOFIND,       # ← pending: volume by chain all versions
+    # ── ACTIVE ────────────────────────────────────────────────────────────────
+    # Volume (USD) by Version, Weekly — V1 + V2 + V3
+    # cols: week, version, volume
+    "global_volume_by_version":   22261,
+
+    # ── PENDING: query IDs not yet found — add ID and parser when available ───
+    # Cumulative fees, ALL versions (V1+V2+V3 combined)
+    # cols esperadas: week, version, fees (ou fees_usd)
+    # "global_fees_by_version":   TOFIND,
+
+    # Volume semanal por blockchain, TODAS as versoes (V1+V2+V3)
+    # cols esperadas: week, blockchain, volume (ou volume_usd)
+    # "global_volume_by_chain":   TOFIND,
+
+    # TVL por blockchain, TODAS as versoes (V1+V2+V3)
+    # cols esperadas: day (ou week), blockchain, tvl_usd (ou tvl)
+    # "global_tvl_by_chain":      TOFIND,
 }
 
 
