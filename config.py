@@ -92,13 +92,23 @@ DUNE_QUERIES: dict[str, int] = {
 #    "global_volume_by_pool_type": ENCONTRAR,
     "global_pools_created":       2617646,      # ← Balancer Pools Created, by Blockchain
 #    "global_pools_by_type":       ENCONTRAR,
-    
+
     # V3
     "v3_summary":                 4373453,
     "v3_volume_by_chain":         4373470,
     "v3_volume_by_pool_type":     4373461,
     "v3_pools_created":           4373500,
     "v3_pools_by_type":           4353295,
+}
+
+# Queries fetched via get_latest_result() — no new execution triggered,
+# reads the latest cached result. Use for public third-party queries
+# (e.g. official Balancer Dune queries) to save API credits.
+DUNE_QUERIES_CACHED: dict[str, int] = {
+    "global_volume_by_version":   22261,        # ← Volume (USD) by Version, Weekly (V1+V2+V3)
+    # "global_fees_by_version":   TOFIND,       # ← pending: cumulative fees all versions
+    # "global_tvl_by_chain":      TOFIND,       # ← pending: TVL by chain all versions
+    # "global_volume_by_chain":   TOFIND,       # ← pending: volume by chain all versions
 }
 
 

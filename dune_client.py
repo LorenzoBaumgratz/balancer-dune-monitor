@@ -76,6 +76,34 @@ class DuneClient:
         execution_id = self._trigger_execution(query_id, parameters or {})
         return self._wait_for_results(execution_id)
 
+    def get_latest_result(self, query_id: int) -> list[dict]:
+        """
+        Return the latest cached result for a query without triggering
+        a new execution (GET /query/{id}/results).
+
+        Faster and uses no API execution credits. Best for public queries
+        owned by third parties (e.g. official Balancer Dune queries).
+        """
+        log.info("Fetching latest cached result for query %d …", query_id)
+        all_rows: list[dict] = []
+        next_uri: str | None = None
+
+        while True:
+            if next_uri:
+                resp = self._get_url(next_uri)
+            else:
+                resp = self._get(f"/query/{query_id}/results")
+            rows: list[dict] = resp.get("result", {}).get("rows", [])
+            all_rows.extend(rows)
+            next_uri = resp.get("next_uri")
+            if not next_uri:
+                break
+
+        log.info(
+            "Fetched %d rows from query %d (cached)", len(all_rows), query_id
+        )
+        return all_rows
+
     def run_sql(self, sql: str) -> list[dict]:
         """
         Execute arbitrary SQL via the Dune query engine.

@@ -33,7 +33,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Any, Callable
 
-from config import DUNE_QUERIES
+from config import DUNE_QUERIES, DUNE_QUERIES_CACHED
 from dune_client import DuneClient
 from logger_setup import get_logger
 
@@ -177,7 +177,10 @@ def _parse_v3_volume_by_chain(rows: list[dict], scope: str) -> list[Snapshot]:
     recent_rows = _most_recent_rows_per_group(rows, "blockchain")
 
     for row in recent_rows:
-        chain = row.get("blockchain", "").strip()
+        raw_chain = row.get("blockchain")
+        if raw_chain is None:
+            continue
+        chain = str(raw_chain).strip()
         if not chain:
             continue
         snap_date = _parse_row_date(row)
@@ -311,15 +314,41 @@ def _parse_global_pools_created(rows: list[dict], scope: str) -> list[Snapshot]:
     return snaps
 
 
+def _parse_global_volume_by_version(rows: list[dict], scope: str) -> list[Snapshot]:
+    """
+    Query 22261 – Volume (USD) by Version, Weekly  (V1 + V2 + V3)
+    Expected cols: week, version, volume (or volume_usd / Volume)
+    Returns the most recent week per version.
+    """
+    snaps: list[Snapshot] = []
+    recent_rows = _most_recent_rows_per_group(rows, "version")
+
+    for row in recent_rows:
+        version = str(row.get("version", "")).strip().lower()
+        if not version:
+            continue
+        snap_date = _parse_row_date(row)
+        try:
+            val = _fval(row, "volume", "volume_usd", "Volume")
+            snaps.append(
+                Snapshot(snap_date, "weekly_volume_by_version", "version", version, val)
+            )
+        except KeyError:
+            pass
+
+    return snaps
+
+
 # ── Parser registry ───────────────────────────────────────────────────────────
 
 PARSERS: dict[str, tuple[Callable[[list[dict], str], list[Snapshot]], str]] = {
-    "global_pools_created":   (_parse_global_pools_created, "global"),
-    "v3_summary":             (_parse_v3_summary,           "v3"),
-    "v3_volume_by_chain":     (_parse_v3_volume_by_chain,   "v3"),
-    "v3_volume_by_pool_type": (_parse_v3_volume_by_pool_type, "v3"),
-    "v3_pools_created":       (_parse_v3_tvl,               "v3"),
-    "v3_pools_by_type":       (_parse_v3_pools_by_type,     "v3"),
+    "global_pools_created":      (_parse_global_pools_created,      "global"),
+    "global_volume_by_version":  (_parse_global_volume_by_version,  "global"),
+    "v3_summary":                (_parse_v3_summary,                "v3"),
+    "v3_volume_by_chain":        (_parse_v3_volume_by_chain,        "v3"),
+    "v3_volume_by_pool_type":    (_parse_v3_volume_by_pool_type,    "v3"),
+    "v3_pools_created":          (_parse_v3_tvl,                    "v3"),
+    "v3_pools_by_type":          (_parse_v3_pools_by_type,          "v3"),
 }
 
 
@@ -327,10 +356,12 @@ PARSERS: dict[str, tuple[Callable[[list[dict], str], list[Snapshot]], str]] = {
 
 def extract_all(client: DuneClient) -> list[Snapshot]:
     """
-    Run every query in DUNE_QUERIES, parse results, and return all Snapshots.
+    Run every query in DUNE_QUERIES (fresh execution) and DUNE_QUERIES_CACHED
+    (latest cached result, no execution cost), parse results, return all Snapshots.
     """
     all_snapshots: list[Snapshot] = []
 
+    # ── Fresh executions ──────────────────────────────────────────────────────
     for logical_name, query_id in DUNE_QUERIES.items():
         entry = PARSERS.get(logical_name)
         if entry is None:
@@ -353,6 +384,34 @@ def extract_all(client: DuneClient) -> list[Snapshot]:
 
         log.info(
             "Query '%s': %d rows → %d snapshots", logical_name, len(rows), len(snaps)
+        )
+        all_snapshots.extend(snaps)
+
+    # ── Cached results (no new execution) ─────────────────────────────────────
+    for logical_name, query_id in DUNE_QUERIES_CACHED.items():
+        entry = PARSERS.get(logical_name)
+        if entry is None:
+            log.warning("No parser registered for cached query '%s' – skipping", logical_name)
+            continue
+
+        parser_fn, scope = entry
+
+        try:
+            rows = client.get_latest_result(query_id)
+        except Exception as exc:
+            log.error(
+                "Failed to fetch cached query '%s' (id=%d): %s", logical_name, query_id, exc
+            )
+            continue
+
+        try:
+            snaps = parser_fn(rows, scope)
+        except Exception as exc:
+            log.error("Failed to parse cached query '%s': %s", logical_name, exc, exc_info=True)
+            continue
+
+        log.info(
+            "Cached query '%s': %d rows → %d snapshots", logical_name, len(rows), len(snaps)
         )
         all_snapshots.extend(snaps)
 
@@ -430,6 +489,26 @@ def extract_all_history(client: DuneClient) -> list[Snapshot]:
         log.info("pools_by_type history: %d rows processed", len(rows))
     except Exception as exc:
         log.error("Failed to fetch pools_by_type history: %s", exc)
+
+    # Volume by version, all time (22261): one row per (week, version)
+    log.info("Fetching historical volume by version (query 22261, cached)...")
+    try:
+        rows = client.get_latest_result(22261)
+        for row in rows:
+            snap_date = _parse_row_date(row)
+            version = str(row.get("version", "")).strip().lower()
+            if not version:
+                continue
+            try:
+                val = _fval(row, "volume", "volume_usd", "Volume")
+                all_snapshots.append(
+                    Snapshot(snap_date, "weekly_volume_by_version", "version", version, val)
+                )
+            except KeyError:
+                pass
+        log.info("volume_by_version history: %d rows processed", len(rows))
+    except Exception as exc:
+        log.error("Failed to fetch volume_by_version history: %s", exc)
 
     log.info("Historical extraction total: %d snapshots", len(all_snapshots))
     return all_snapshots
