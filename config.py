@@ -87,18 +87,12 @@ def milestone_step(value: float) -> float:
 
 DUNE_QUERIES: dict[str, int] = {
     # GLOBAL
-#   "global_summary":             ENCONTRAR,    # precisa achar
-#    "global_volume_by_chain":     ENCONTRAR,
-#    "global_volume_by_pool_type": ENCONTRAR,
-    "global_pools_created":       2617646,      # ← Balancer Pools Created, by Blockchain
-#    "global_pools_by_type":       ENCONTRAR,
+    "global_pools_created":   2617646,   # Pools criadas por blockchain, todas versões
 
-    # V3
-    "v3_summary":                 4373453,
-    "v3_volume_by_chain":         4373470,
-    "v3_volume_by_pool_type":     4373461,
-    "v3_pools_created":           4373500,
-    "v3_pools_by_type":           4353295,
+    # V3 — fresh execution (queries sem resultado cacheado disponível)
+    "v3_summary":             4373453,   # Resumo diário V3: volume, swaps, all-time vol
+    "v3_pools_created":       4373500,   # TVL diário V3 (nome enganoso — retorna TVL)
+    "v3_pools_by_type":       4353295,   # Métricas diárias por versão de pool (vol, fees, tvl)
 }
 
 # Queries fetched via get_latest_result() — no new execution triggered,
@@ -122,22 +116,40 @@ DUNE_QUERIES: dict[str, int] = {
 #                             → tvl                       (scope_type="global", scope_value="")
 #
 DUNE_QUERIES_CACHED: dict[str, int] = {
-    # ── ACTIVE ────────────────────────────────────────────────────────────────
-    # Volume (USD) by Version, Weekly — V1 + V2 + V3
+    # ── ACTIVE: retornam histórico completo, sem custo de execução ────────────
+
+    # Volume semanal por versão (V1+V2+V3) — histórico completo desde a V1
     # cols: week, version, volume
     "global_volume_by_version":   22261,
 
-    # ── PENDING: query IDs not yet found — add ID and parser when available ───
-    # Cumulative fees, ALL versions (V1+V2+V3 combined)
-    # cols esperadas: week, version, fees (ou fees_usd)
+    # Volume diário por blockchain, só V3 — histórico completo desde o lançamento
+    # cols: week (ou day), blockchain, volume
+    "v3_volume_by_chain":         4373470,
+
+    # Volume diário por tipo de pool, só V3 — histórico completo desde o lançamento
+    # cols: week (ou day), pool_type, volume
+    "v3_volume_by_pool_type":     4373461,
+
+    # TVL diário por blockchain, só V3 — histórico completo desde o lançamento
+    # cols: day, blockchain, tvl_usd  (possivelmente tvl_eth também)
+    "v3_tvl_by_chain":            4373530,
+
+    # Fees diárias V3 — histórico completo desde o lançamento
+    # cols prováveis: day, fees_usd  (colunas exatas a confirmar no primeiro fetch)
+    "v3_fees_daily":              4373539,
+
+    # ── PENDING: IDs ainda não encontrados ────────────────────────────────────
+
+    # Fees acumuladas por versão (V1+V2+V3)
+    # cols esperadas: week, version, fees
     # "global_fees_by_version":   TOFIND,
 
-    # Volume semanal por blockchain, TODAS as versoes (V1+V2+V3)
-    # cols esperadas: week, blockchain, volume (ou volume_usd)
+    # Volume por blockchain, TODAS as versões (V1+V2+V3)
+    # cols esperadas: week, blockchain, volume
     # "global_volume_by_chain":   TOFIND,
 
-    # TVL por blockchain, TODAS as versoes (V1+V2+V3)
-    # cols esperadas: day (ou week), blockchain, tvl_usd (ou tvl)
+    # TVL por blockchain, TODAS as versões (V1+V2+V3)
+    # cols esperadas: day, blockchain, tvl_usd
     # "global_tvl_by_chain":      TOFIND,
 }
 
